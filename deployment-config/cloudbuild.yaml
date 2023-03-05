@@ -1,0 +1,54 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    id: Dockerizing application
+    entrypoint: bash
+    args:
+      [
+        '-c',
+        'docker build -f deployment-config/Dockerfile -t gcr.io/$PROJECT_ID/$_SERVICE_NAME:$COMMIT_SHA --build-arg NPM_TOKEN=$$NPM_TOKEN .',
+      ]
+    secretEnv:
+      - NPM_TOKEN
+  - name: gcr.io/cloud-builders/docker
+    id: Pushing docker image to container registry
+    args: ['push', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$COMMIT_SHA']
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: Deploying to ${_REGION}
+    entrypoint: gcloud
+    args:
+      [
+        'run',
+        'deploy',
+        '$_SERVICE_NAME',
+        '--image',
+        'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$COMMIT_SHA',
+        '--region',
+        '$_REGION',
+        '--service-account',
+        '$_SERVICE_ACCOUNT',
+        '--timeout',
+        '$_TIMEOUT',
+        '--set-env-vars',
+        'ALCHEMY_SECRET_KEY=${_ALCHEMY_SECRET_KEY}',
+        '--set-env-vars',
+        'API_SECRET_KEY=${_API_SECRET_KEY}',
+      ]
+images:
+  - gcr.io/$PROJECT_ID/$_SERVICE_NAME:$COMMIT_SHA
+substitutions:
+  _REGION: us-central1
+  _SERVICE_ACCOUNT: jam-tolerance-service@crypto-351521.iam.gserviceaccount.com
+  _SERVICE_NAME: jam-tolerance-service
+  _SECRET_VERSION: latest
+  _ALCHEMY_SECRET_KEY: alchemy-key
+  _API_SECRET_KEY: api-secret-key
+  _NPM_SECRET_KEY: npm-token-key
+  _REGISTRY_URL: https://npm.pkg.github.com/
+  _JAM_ETH_NODE_HTTPS: https://rabbit.dev/http
+  _TIMEOUT: 30m
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_NUMBER/secrets/$_NPM_SECRET_KEY/versions/$_SECRET_VERSION
+      env: 'NPM_TOKEN'
+options:
+  substitution_option: ALLOW_LOOSE
